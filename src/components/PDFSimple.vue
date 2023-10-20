@@ -1,86 +1,5 @@
 <template>
-  <div class="flex py-3 px-2 bg-slate-700">
-    <div class="flex gap-2 items-center">
-      <!-- v-show="showElem('sidebar', 'sidebarToggle')" -->
-      <div>
-        <button
-          id="sidebarToggle"
-          class="btn"
-          title="Toggle Sidebar"
-          tabindex="11"
-          data-l10n-id="toggle_sidebar"
-          style="margin-left: 0.3rem; margin-right: 0.3rem; height: auto; width: auto"
-        >
-          <BarraIcon />
-        </button>
-      </div>
-      <div class="flex gap-2">
-        <!-- @click="onOpenSidebar('files')"
-        v-if="viewButton.files" -->
-        <div>
-          <button
-            class="btn-pdf-toolbar"
-            title="Archivos"
-            tabindex="12"
-            data-l10n-id="toggle_sidebar"
-          >
-            <FileIcon />
-          </button>
-        </div>
-        <div>
-          <button
-            id="viewFind"
-            class="btn-pdf-toolbar"
-            title="Find in Document"
-            tabindex="12"
-            data-l10n-id="findbar"
-          >
-            <SearchIcon />
-          </button>
-        </div>
-        <div>
-          <button
-            class="btn-pdf-toolbar"
-            title="Previous Page"
-            id="previous"
-            tabindex="13"
-            data-l10n-id="previous"
-          >
-            <UpIcon />
-          </button>
-        </div>
-        <div>
-          <button
-            class="btn-pdf-toolbar"
-            title="Next Page"
-            id="next"
-            tabindex="14"
-            data-l10n-id="next"
-          >
-            <DownIcon />
-          </button>
-        </div>
-        <!-- <div style="padding-top: 6px"> -->
-        <div>
-          <input
-            type="number"
-            id="pageNumber"
-            class="input-pdf-number [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            title="Page"
-            value="1"
-            size="4"
-            min="1"
-            tabindex="15"
-            data-l10n-id="page"
-            autocomplete="off"
-          />
-          <span id="numPages" class="toolbarLabel"></span>
-        </div>
-      </div>
-    </div>
-    <div></div>
-    <div></div>
-  </div>
+  <PdfToolbar :pages="currentPdfPages" v-model:currentPage="currentPage" />
   <div id="viewerContainer" ref="containerRef">
     <div id="viewer" class="pdfViewer"></div>
   </div>
@@ -97,30 +16,24 @@ import {
 } from 'pdfjs-dist/web/pdf_viewer';
 import 'pdfjs-dist/web/pdf_viewer.css';
 
-import { onMounted, PropType, ref, watch } from 'vue';
+import { onMounted, PropType, ref, watch, computed } from 'vue';
 import { WORKER_SRC, SANDBOX_BUNDLE_SRC } from '../constants/pdf.const';
 import type { IFile, PageScale } from '@/types';
-import {
-  AdsibIcon,
-  AgeticIcon,
-  Barra2Icon,
-  BarraIcon,
-  DownIcon,
-  DownloadIcon,
-  FileIcon,
-  FileSimpleIcon,
-  FullScreenIcon,
-  PrintIcon,
-  SearchIcon,
-  UpIcon,
-  ZoomInIcon,
-  ZoomOutIcon
-} from '../assets/icons';
+import PdfToolbar from './PdfToolbar.vue';
 
 const containerRef = ref();
 let pdfViewer: PDFViewer | undefined = undefined;
+const pdfViewerRef = ref<PDFViewer | undefined>();
 let pdfLinkService: PDFLinkService | undefined = undefined;
+
 const currentPdf = ref<IFile | undefined>();
+const currentPage = ref<Number | undefined>(1);
+const currentPdfPages = computed(() => {
+  if (currentPage.value && pdfViewer) {
+    return pdfViewer.pagesCount;
+  }
+  return 0;
+});
 
 const CMAP_URL = '../../node_modules/pdfjs-dist/cmaps';
 const CMAP_PACKED = true;
@@ -181,6 +94,7 @@ const renderPdf = async () => {
     });
 
     pdfViewer = newPdfViewer;
+    pdfViewerRef.value = pdfViewer;
 
     onLoadDocuments();
     // const loadingTask = getDocument({
@@ -206,6 +120,10 @@ const renderPdf = async () => {
   }
 };
 
+watch(pdfViewerRef, (current) => {
+  console.log(current);
+});
+
 const onLoadDocuments = async () => {
   if (props.files?.length > 0) {
     currentPdf.value = props.files[0];
@@ -221,6 +139,8 @@ const onLoadDocuments = async () => {
     const newDoc = await loadingTask.promise;
     pdfViewer?.setDocument(newDoc);
     pdfLinkService?.setDocument(newDoc, null);
+    console.log(pdfViewer?.pagesCount);
+    currentPage.value = pdfViewer?.pagesCount;
   } else {
     currentPdf.value = undefined;
   }
@@ -229,6 +149,12 @@ const onLoadDocuments = async () => {
 watch(props.files, (current) => {
   if (current) {
     onLoadDocuments();
+  }
+});
+
+watch(currentPage, (current) => {
+  if (pdfViewer && current) {
+    pdfViewer.currentPageNumber = current as number;
   }
 });
 
@@ -250,49 +176,5 @@ body {
   position: absolute;
   width: 100%;
   height: 100%;
-}
-</style>
-
-<style lang="scss" scoped>
-.btn {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  & svg {
-    color: var(--pdf-primary-color);
-    width: 20px;
-    height: 20px;
-  }
-}
-.btn-pdf-toolbar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: var(--pdf-primary-color);
-  border: 2px solid var(--pdf-primary-color);
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-
-  & svg {
-    color: var(--pdf-primary-color);
-    width: 25px;
-    height: 25px;
-  }
-}
-.input-pdf-number {
-  border: 2px solid var(--pdf-primary-color);
-  width: 75px;
-  border-radius: 12px;
-  padding: 0.1rem 0.5rem;
-  &:focus {
-    border: 2px solid var(--pdf-primary-color);
-    outline: 1px solid var(--pdf-primary-color);
-    width: 75px;
-    border-radius: 12px;
-    padding: 0.1rem 0.5rem;
-  }
 }
 </style>
