@@ -28,12 +28,7 @@ let pdfLinkService: PDFLinkService | undefined = undefined;
 
 const currentPdf = ref<IFile | undefined>();
 const currentPage = ref<Number | undefined>(1);
-const currentPdfPages = computed(() => {
-  if (currentPage.value && pdfViewer) {
-    return pdfViewer.pagesCount;
-  }
-  return 0;
-});
+const currentPdfPages = ref<Number | undefined>();
 
 const CMAP_URL = '../../node_modules/pdfjs-dist/cmaps';
 const CMAP_PACKED = true;
@@ -117,6 +112,9 @@ const renderPdf = async () => {
     //     eventBus.dispatch('find', { type: '', query: SEARCH_FOR });
     //   }
     // });
+    eventBus.on('pagesinit', function () {
+      currentPdfPages.value = pdfViewerRef.value?.pagesCount;
+    });
   }
 };
 
