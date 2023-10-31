@@ -4,6 +4,10 @@
       :pages="currentPdfPages"
       v-model:currentPage="currentPage"
       v-model:pageScale="zoom"
+      :pdfViewerRef="pdfViewerRef"
+      :requestFullscreen="enterFullscreen"
+      :downloadClick="downloadClick"
+      :printPDF="printPDF"
     />
     <div id="viewerContainer" ref="containerRef" class="max-w-[100vw] h-[calc(100%-55px)]">
       <div id="viewer" class="pdfViewer"></div>
@@ -26,10 +30,11 @@ import { onMounted, PropType, ref, watch, toRaw } from 'vue';
 import { WORKER_SRC, SANDBOX_BUNDLE_SRC } from '../constants/pdf.const';
 import type { IFile, PageScale } from '@/types';
 import PdfToolbar from './PdfToolbar.vue';
+import printJS from 'print-js';
 
 const containerRef = ref();
 const pdfViewerRef = ref<PDFViewer | undefined>();
-let pdfLinkService: PDFLinkService | undefined = undefined;
+const pdfLinkService = ref<PDFLinkService | undefined>();
 
 const currentPdf = ref<IFile | undefined>();
 const currentPage = ref<number | undefined>(1);
@@ -57,11 +62,6 @@ const props = defineProps({
 
 const zoom = ref(props.pageScale);
 
-// const token =
-//   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOnsidXN1YXJpb0lkIjoxNjksImFwbGljYWNpb25JZCI6NjksImZ1bmNpb25hcmlvSWQiOjI2OSwibXNQZXJzb25hSWQiOjUyNSwiaW5zdGl0dWNpb25JZCI6MSwib2ZpY2luYUlkIjoxLCJtdW5pY2lwaW9JZCI6MSwiZGVwYXJ0YW1lbnRvSWQiOjEsInBlcmZpbFBlcnNvbmFJZCI6Mjg0LCJjaSI6IjEwNjMxMTQ5In0sImlhdCI6MTY5NzU2Nzg1NSwiZXhwIjoxNzI5MTA3ODU1fQ.o32n8gj-2pnw-b02rlT30B7evkasl9x2j8G9jOtBrSo';
-
-// const url = `https://jl2-gw.test.mp.gob.bo/v1/ms-files/ver/archivo/64fb7470684609d8ac4c3b12/${token}`;
-
 onMounted(() => {
   renderPdf();
 });
@@ -77,9 +77,9 @@ const renderPdf = async () => {
       eventBus
     });
 
-    pdfLinkService = newPdfLinkService;
+    pdfLinkService.value = newPdfLinkService;
 
-    const pdfFindController = new PDFFindController({
+    const newPdfController = new PDFFindController({
       eventBus,
       linkService: newPdfLinkService
     });
@@ -94,36 +94,20 @@ const renderPdf = async () => {
       container,
       eventBus,
       linkService: newPdfLinkService,
-      findController: pdfFindController,
+      findController: newPdfController,
       scriptingManager: pdfScriptingManager
     });
+    newPdfLinkService.setViewer(newPdfViewer);
 
     pdfViewerRef.value = newPdfViewer;
 
     onLoadDocuments();
-    // const loadingTask = getDocument({
-    //   url,
-    //   cMapUrl: CMAP_URL,
-    //   cMapPacked: CMAP_PACKED,
-    //   enableXfa: ENABLE_XFA
-    // });
 
-    // const newDoc = await loadingTask.promise;
-    // pdfViewer.setDocument(newDoc);
-    // pdfLinkService.setDocument(newDoc, null);
-
-    // eventBus.on('pagesinit', function () {
-    //   // We can use pdfViewer now, e.g. let's change default scale.
-    //   pdfViewer.currentScaleValue = 'page-width';
-
-    //   // We can try searching for things.
-    //   if (SEARCH_FOR) {
-    //     eventBus.dispatch('find', { type: '', query: SEARCH_FOR });
-    //   }
-    // });
     eventBus.on('pagesinit', function () {
       setZoom(props.pageScale);
       currentPdfPages.value = pdfViewerRef.value?.pagesCount;
+
+      // eventBus.dispatch('find', { type: '', query: 'CONTRATO DE ADHESIÓN' });
     });
   }
 };
@@ -159,12 +143,11 @@ const onLoadDocuments = async () => {
       cMapPacked: CMAP_PACKED,
       enableXfa: ENABLE_XFA
     });
-
-    // console.log(pdfViewer.value);
     const newDoc = await loadingTask.promise;
     const pdfViewer = toRaw(pdfViewerRef.value);
+    const linkService = toRaw(pdfLinkService.value);
     pdfViewer?.setDocument(newDoc);
-    pdfLinkService?.setDocument(newDoc, null);
+    linkService?.setDocument(newDoc, null);
     currentPage.value = pdfViewer?.pagesCount;
   } else {
     currentPdf.value = undefined;
@@ -181,6 +164,63 @@ const setZoom = (
     pdfViewer.currentScaleValue = zoom;
   }
 };
+
+const enterFullscreen = () => {
+  const pdfViewer = toRaw(containerRef.value);
+  if (!pdfViewer) return;
+  if (pdfViewer.requestFullscreen) {
+    pdfViewer.requestFullscreen();
+  } else if (pdfViewer.mozRequestFullScreen) {
+    pdfViewer.mozRequestFullScreen();
+  } else if (pdfViewer.webkitRequestFullscreen) {
+    pdfViewer.webkitRequestFullscreen();
+  } else if (pdfViewer.msRequestFullscreen) {
+    pdfViewer.msRequestFullscreen();
+  }
+};
+
+const downloadClick = () => {
+  const pdfViewer = toRaw(pdfViewerRef.value);
+  if (pdfViewer) {
+    pdfViewer.pdfDocument?.getData().then((data) => {
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pdf.pdf';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+  }
+};
+
+const printPDF = async () => {
+  const pdfViewer = toRaw(pdfViewerRef.value);
+  if (pdfViewer && pdfViewer.pdfDocument) {
+    try {
+      const data = await pdfViewer.pdfDocument.getData();
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      printJS({ printable: url, type: 'pdf', showModal: false });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+};
+
+//RECODE THIS
+// const searchTextOnPDF = () => {
+//   const linkService = toRaw(pdfViewerRef.value);
+//   console.log(linkService);
+//   linkService?.eventBus.dispatch('find', {
+//     caseSensitive: false,
+//     findPrevious: undefined,
+//     highlightAll: true,
+//     phraseSearch: true,
+//     query: 'CONTRATO DE'
+//   });
+//   return;
+// };
 </script>
 
 <style lang="scss">

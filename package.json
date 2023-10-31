@@ -11,6 +11,7 @@
   "dependencies": {
     "@rushstack/eslint-patch": "^1.5.1",
     "pdfjs-dist": "^3.11.174",
+    "print-js": "^1.6.0",
     "sass": "^1.69.5",
     "vite-svg-loader": "^4.0.0",
     "vue": "^3.3.4"

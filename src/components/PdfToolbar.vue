@@ -1,7 +1,6 @@
 <template>
-  <div class="flex py-3 px-2 bg-slate-800 justify-between w-[100vw] h-[55px]">
+  <div class="flex py-3 px-2 bg-slate-800 justify-between w-[100vw] h-[55px] border-bottom-toolbar">
     <div class="flex gap-2 items-center">
-      <!-- v-show="showElem('sidebar', 'sidebarToggle')" -->
       <div>
         <button
           id="sidebarToggle"
@@ -14,8 +13,6 @@
         </button>
       </div>
       <div class="flex gap-2">
-        <!-- @click="onOpenSidebar('files')"
-        v-if="viewButton.files" -->
         <div>
           <button
             class="btn-pdf-toolbar"
@@ -63,7 +60,6 @@
             <DownIcon />
           </button>
         </div>
-        <!-- <div style="padding-top: 6px"> -->
         <div>
           <input
             type="number"
@@ -152,6 +148,7 @@
           <AdsibIcon />
         </button>
       </div>
+      <div class="w-[1px] bg-[var(--pdf-primary-color)] my-[8px] mx-[5px] py-[8px]"></div>
       <div>
         <button
           id="viewFind"
@@ -159,6 +156,7 @@
           title="Find in Document"
           tabindex="12"
           data-l10n-id="findbar"
+          @click="props.requestFullscreen"
         >
           <FullScreenIcon />
         </button>
@@ -170,6 +168,7 @@
           title="Find in Document"
           tabindex="12"
           data-l10n-id="findbar"
+          @click="props.printPDF"
         >
           <PrintIcon />
         </button>
@@ -181,6 +180,7 @@
           title="Find in Document"
           tabindex="12"
           data-l10n-id="findbar"
+          @click="props.downloadClick"
         >
           <DownloadIcon />
         </button>
@@ -222,6 +222,18 @@ const props = defineProps({
   pageScale: {
     type: [Number, String] as PropType<PageScale>,
     required: true
+  },
+  requestFullscreen: {
+    type: Function,
+    required: true
+  },
+  downloadClick: {
+    type: Function,
+    required: true
+  },
+  printPDF: {
+    type: Function,
+    required: true
   }
 });
 const emit = defineEmits(['update:currentPage', 'update:pageScale']);
@@ -229,10 +241,6 @@ const emit = defineEmits(['update:currentPage', 'update:pageScale']);
 const changePage = (val: number) => {
   console.log(props.pages + val);
   emit('update:currentPage', props.currentPage + val);
-  // if (pdfViewer) {
-  //   pdfViewer.currentPageNumber += val;
-  //   currentPage.value = pdfViewer.currentPageNumber;
-  // }
 };
 
 const onChangeSelect = (ev: any) => {
@@ -302,5 +310,8 @@ const onZoomClick = (val: number) => {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+}
+.border-bottom-toolbar {
+  border-bottom: 2px solid var(--pdf-primary-color);
 }
 </style>
