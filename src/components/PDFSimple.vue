@@ -1,7 +1,13 @@
 <template>
-  <PdfToolbar :pages="currentPdfPages" v-model:currentPage="currentPage" />
-  <div id="viewerContainer" ref="containerRef">
-    <div id="viewer" class="pdfViewer"></div>
+  <div class="overflow-hidden">
+    <PdfToolbar
+      :pages="currentPdfPages"
+      v-model:currentPage="currentPage"
+      v-model:pageScale="zoom"
+    />
+    <div id="viewerContainer" ref="containerRef" class="max-w-[100vw] h-[calc(100%-55px)]">
+      <div id="viewer" class="pdfViewer"></div>
+    </div>
   </div>
 </template>
 
@@ -16,19 +22,18 @@ import {
 } from 'pdfjs-dist/web/pdf_viewer';
 import 'pdfjs-dist/web/pdf_viewer.css';
 
-import { onMounted, PropType, ref, watch, computed } from 'vue';
+import { onMounted, PropType, ref, watch, toRaw } from 'vue';
 import { WORKER_SRC, SANDBOX_BUNDLE_SRC } from '../constants/pdf.const';
 import type { IFile, PageScale } from '@/types';
 import PdfToolbar from './PdfToolbar.vue';
 
 const containerRef = ref();
-let pdfViewer: PDFViewer | undefined = undefined;
 const pdfViewerRef = ref<PDFViewer | undefined>();
 let pdfLinkService: PDFLinkService | undefined = undefined;
 
 const currentPdf = ref<IFile | undefined>();
-const currentPage = ref<Number | undefined>(1);
-const currentPdfPages = ref<Number | undefined>();
+const currentPage = ref<number | undefined>(1);
+const currentPdfPages = ref<number | undefined>();
 
 const CMAP_URL = '../../node_modules/pdfjs-dist/cmaps';
 const CMAP_PACKED = true;
@@ -43,10 +48,14 @@ const props = defineProps({
   files: { type: Array as PropType<IFile[]>, default: () => [] },
   pageScale: {
     type: [Number, String] as PropType<PageScale>,
-    default: 1.5
+    default: 'auto'
   },
-  pageNumber: Number
+  pageNumber: {
+    type: Number
+  }
 });
+
+const zoom = ref(props.pageScale);
 
 // const token =
 //   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOnsidXN1YXJpb0lkIjoxNjksImFwbGljYWNpb25JZCI6NjksImZ1bmNpb25hcmlvSWQiOjI2OSwibXNQZXJzb25hSWQiOjUyNSwiaW5zdGl0dWNpb25JZCI6MSwib2ZpY2luYUlkIjoxLCJtdW5pY2lwaW9JZCI6MSwiZGVwYXJ0YW1lbnRvSWQiOjEsInBlcmZpbFBlcnNvbmFJZCI6Mjg0LCJjaSI6IjEwNjMxMTQ5In0sImlhdCI6MTY5NzU2Nzg1NSwiZXhwIjoxNzI5MTA3ODU1fQ.o32n8gj-2pnw-b02rlT30B7evkasl9x2j8G9jOtBrSo';
@@ -67,6 +76,7 @@ const renderPdf = async () => {
     const newPdfLinkService = new PDFLinkService({
       eventBus
     });
+
     pdfLinkService = newPdfLinkService;
 
     const pdfFindController = new PDFFindController({
@@ -88,8 +98,7 @@ const renderPdf = async () => {
       scriptingManager: pdfScriptingManager
     });
 
-    pdfViewer = newPdfViewer;
-    pdfViewerRef.value = pdfViewer;
+    pdfViewerRef.value = newPdfViewer;
 
     onLoadDocuments();
     // const loadingTask = getDocument({
@@ -113,6 +122,7 @@ const renderPdf = async () => {
     //   }
     // });
     eventBus.on('pagesinit', function () {
+      setZoom(props.pageScale);
       currentPdfPages.value = pdfViewerRef.value?.pagesCount;
     });
   }
@@ -120,6 +130,23 @@ const renderPdf = async () => {
 
 watch(pdfViewerRef, (current) => {
   console.log(current);
+});
+
+watch(zoom, (current) => {
+  setZoom(current);
+});
+
+watch(props.files, (current) => {
+  if (current) {
+    onLoadDocuments();
+  }
+});
+
+watch(currentPage, (current) => {
+  if (pdfViewerRef.value && current) {
+    const pdfViewer = toRaw(pdfViewerRef.value);
+    pdfViewer.currentPageNumber = current;
+  }
 });
 
 const onLoadDocuments = async () => {
@@ -135,32 +162,25 @@ const onLoadDocuments = async () => {
 
     // console.log(pdfViewer.value);
     const newDoc = await loadingTask.promise;
+    const pdfViewer = toRaw(pdfViewerRef.value);
     pdfViewer?.setDocument(newDoc);
     pdfLinkService?.setDocument(newDoc, null);
-    console.log(pdfViewer?.pagesCount);
     currentPage.value = pdfViewer?.pagesCount;
   } else {
     currentPdf.value = undefined;
   }
 };
 
-watch(props.files, (current) => {
-  if (current) {
-    onLoadDocuments();
+const setZoom = (
+  zoomValue: 'page-actual' | 'page-width' | 'page-height' | 'page-fit' | 'auto' | number
+) => {
+  const pdfViewer = toRaw(pdfViewerRef.value);
+  if (pdfViewer) {
+    // "page-actual" | "page-width" | "page-height" | "page-fit" | "auto" | number
+    const zoom = typeof zoomValue === 'string' ? zoomValue : `${zoomValue}`;
+    pdfViewer.currentScaleValue = zoom;
   }
-});
-
-watch(currentPage, (current) => {
-  if (pdfViewer && current) {
-    pdfViewer.currentPageNumber = current as number;
-  }
-});
-
-// watch(currentPdf, (current) => {
-//   if (current) {
-//     onLoadDocuments(props.files[0]);
-//   }
-// });
+};
 </script>
 
 <style lang="scss">
@@ -170,9 +190,8 @@ body {
   padding: 0;
 }
 #viewerContainer {
-  overflow: auto;
+  overflow: hidden auto;
   position: absolute;
   width: 100%;
-  height: 100%;
 }
 </style>
